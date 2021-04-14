@@ -11,6 +11,10 @@ import pandas as pd
 df=pd.read_csv("ipl.csv")
 df.head()
 
+df['venue'].value_counts()
+
+df['batsman'].value_counts()
+
 df.columns
 
 df['bat_team'].value_counts()
@@ -35,7 +39,7 @@ df.head()
 
 df.columns
 
-final_df=df[['date', 'bat_team_Chennai Super Kings', 'bat_team_Delhi Daredevils', 'bat_team_Kings XI Punjab',
+final_df=df[['date','bat_team_Chennai Super Kings', 'bat_team_Delhi Daredevils', 'bat_team_Kings XI Punjab',
               'bat_team_Kolkata Knight Riders', 'bat_team_Mumbai Indians', 'bat_team_Rajasthan Royals',
               'bat_team_Royal Challengers Bangalore', 'bat_team_Sunrisers Hyderabad',
               'bowl_team_Chennai Super Kings', 'bowl_team_Delhi Daredevils', 'bowl_team_Kings XI Punjab',
@@ -48,6 +52,67 @@ final_df.head()
 from datetime import datetime
 final_df['date']=final_df['date'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d'))
 
+df=pd.get_dummies(df,columns=['venue'], drop_first=True)
+df.head()
+
+from nltk.corpus import stopwords
+import nltk
+nltk.download('stopwords')
+stopwords=set(stopwords.words('english'))
+
+df['comb'] = df['batsman'] + ' ' + df['bowler']
+df.drop(columns=['batsman','bowler'],axis=1, inplace=True)
+df['comb'] = df['comb'].str.lower()
+df.head()
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+import spacy
+from tqdm.auto import tqdm
+import numpy as np
+
+comb = list(df['comb'])
+tfidf = TfidfVectorizer(lowercase=False, )
+X=tfidf.fit_transform(comb)
+print(X.shape)
+# dict key:word and value:tf-idf score
+word2tfidf = dict(zip(tfidf.get_feature_names(), tfidf.idf_))
+print(word2tfidf)
+nlp = spacy.load('en_core_web_sm')
+
+vecs1 = []
+
+for i in tqdm(list(df['comb'])):
+    combdata = nlp(i) 
+    # 384 is the number of dimensions of vectors 
+    mean_vec1 = np.zeros([len(comb), len(combdata[0].vector)])
+    for word1 in combdata:
+        # word2vec
+        vec1 = word1.vector
+        # fetch df score
+        try:
+            idf = word2tfidf[str(word1)]
+        except:
+            idf = 0
+        # compute final vec
+        mean_vec1 += vec1 * idf
+    mean_vec1 = mean_vec1.mean(axis=0)
+    vecs1.append(mean_vec1)
+df['comb_feats_m'] = list(vecs1)
+
+df.head()
+
+df1=df.drop(['comb'],axis=1)
+df2=pd.DataFrame(df1.comb_feats_m.tolist(),index=df1.index)
+
+df2.head()
+
+df3=pd.concat([df1,df2],axis=1)
+df3.drop(['comb_feats_m'],axis=1)
+df3.head()
+df3.shape
+
+train_vector_venue=vectorizer.fit(df['venue'])
+
 X_train = final_df.drop(labels='total', axis=1)[final_df['date'].dt.year <= 2016]
 X_test = final_df.drop(labels='total', axis=1)[final_df['date'].dt.year >= 2017]
 
@@ -57,10 +122,48 @@ y_test = final_df[final_df['date'].dt.year >= 2017]['total'].values
 X_train.drop(labels='date', axis=True, inplace=True)
 X_test.drop(labels='date', axis=True, inplace=True)
 
+
+
 from sklearn.linear_model import LinearRegression
 regressor = LinearRegression()
 regressor.fit(X_train,y_train)
 
+y_predreg=regressor.predict(X_test)
+
+from sklearn import metrics
+import numpy as np
+print('MAE:', metrics.mean_absolute_error(y_test, y_predreg))
+print('MSE:', metrics.mean_squared_error(y_test, y_predreg))
+print('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, y_predreg)))
+
+from sklearn import svm
+
+regr=svm.SVR(kernel='rbf')
+regr.fit(X_train,y_train)
+
+y_pred=regr.predict(X_test)
+
+print('MAE:', metrics.mean_absolute_error(y_test, y_pred))
+print('MSE:', metrics.mean_squared_error(y_test, y_pred))
+print('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, y_pred)))
+
+from sklearn.linear_model import Lasso
+from sklearn.model_selection import GridSearchCV
+
+lasso=Lasso()
+parameters={'alpha':[1e-15,1e-10,1e-8,1e-3,1e-2,1,5,10,20,30,35,40]}
+lasso_regressor=GridSearchCV(lasso,parameters,scoring='neg_mean_squared_error',cv=5)
+
+lasso_regressor.fit(X_train,y_train)
+print(lasso_regressor.best_params_)
+print(lasso_regressor.best_score_)
+
+pred_lasso=lasso_regressor.predict(X_test)
+
+print('MAE:', metrics.mean_absolute_error(y_test, pred_lasso))
+print('MSE:', metrics.mean_squared_error(y_test, pred_lasso))
+print('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, pred_lasso)))
+
 import pickle
 filename = 'IPLScorePrediction.pkl'
-pickle.dump(regressor, open(filename, 'wb'))
+pickle.dump(lasso_regressor, open(filename, 'wb'))
