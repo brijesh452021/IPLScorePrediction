@@ -14,6 +14,9 @@ import numpy as np
 filename = 'IPLScorePrediction.pkl'
 regressor = pickle.load(open(filename, 'rb'))
 
+filenamewin = 'WinnerPrediction.pkl'
+classify = pickle.load(open(filenamewin, 'rb'))
+
 app = Flask(__name__)
 
 @app.route('/')
@@ -62,7 +65,7 @@ def predict():
             temp_array = temp_array + [0,0,0,0,0,0,1,0]
         elif bowling_team == 'Sunrisers Hyderabad':
             temp_array = temp_array + [0,0,0,0,0,0,0,1]
-
+        temp2array=temp_array
         venue = request.form['Venue']
         if(venue=='Brabourne Stadium'):
           temp_array = temp_array + [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
@@ -146,7 +149,9 @@ def predict():
                 temp_array = temp_array + [overs, runs, wickets, runs_in_prev_5, wickets_in_prev_5,combo]
                 data = np.array([temp_array])
                 my_prediction = int(regressor.predict(data)[0])
-                return render_template('result.html', lower_limit = my_prediction-10, upper_limit = my_prediction+5)
+                data2 = np.array([temp2_array])
+                pred_win=float(classify.predict(data2)[0])*100
+                return render_template('result.html', lower_limit = my_prediction-10, upper_limit = my_prediction+5,prediction_text="winning percentage of team1. {}".format(pred_win))
               else:
                 return render_template('index.html',prediction_text="Entered Data is Wrong")
             else:

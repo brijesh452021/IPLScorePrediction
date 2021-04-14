@@ -106,12 +106,14 @@ df2=pd.DataFrame(df1.comb_feats_m.tolist(),index=df1.index)
 
 df2.head()
 
+
+
 df3=pd.concat([df1,df2],axis=1)
 df3.drop(['comb_feats_m'],axis=1)
 df3.head()
 df3.shape
 
-train_vector_venue=vectorizer.fit(df['venue'])
+df3.columns
 
 X_train = final_df.drop(labels='total', axis=1)[final_df['date'].dt.year <= 2016]
 X_test = final_df.drop(labels='total', axis=1)[final_df['date'].dt.year >= 2017]
@@ -167,3 +169,97 @@ print('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, pred_lasso)))
 import pickle
 filename = 'IPLScorePrediction.pkl'
 pickle.dump(lasso_regressor, open(filename, 'wb'))
+
+IPLScorePredictionPickle=pickle.load(open('IPLScorePrediction.pkl','rb'))
+predictions_score=IPLScorePredictionPickle.predict(X_test)
+metrics.r2_score(y_test, pred_lasso)
+
+df_match=pd.read_csv('matches.csv')
+df_match.head()
+
+df_win=df_match['team1']+ df_match['team2']
+df_win.head()
+
+subsetDataFrame = df_match[df_match['team1'] == df_match['winner']]
+subsetDataFrame['winner']=1
+subsetDataFrame.head()
+
+subsetDataFrame2 = df_match[df_match['team2'] == df_match['winner']]
+subsetDataFrame2['winner']=0
+
+subsetDataFrame2.head()
+
+df_concat = pd.concat([subsetDataFrame, subsetDataFrame2], axis=0)
+df_concat.head()
+
+df_concat.tail()
+
+df_winner=df_concat['winner']
+df_winner.head()
+df_team2=df_match['team2']
+df_team1=df_match['team1']
+
+df_win=pd.concat([df_team1,df_team2,df_winner], axis=1)
+df_win.head()
+
+ActiveTeams=['Kolkata Knight Riders', 'Chennai Super Kings', 'Rajasthan Royals',
+                    'Mumbai Indians', 'Kings XI Punjab', 'Royal Challengers Bangalore',
+                    'Delhi Daredevils', 'Sunrisers Hyderabad']
+
+df_win=df_win[(df_win['team1'].isin (ActiveTeams)) & (df_win['team2'].isin (ActiveTeams))]
+df_win.head()
+
+df_win=pd.get_dummies(df_win,columns=['team1','team2'])
+
+df_win.head()
+
+df_win.columns
+
+final_df_win=df_win[['team1_Chennai Super Kings', 'team1_Delhi Daredevils',
+       'team1_Kings XI Punjab', 'team1_Kolkata Knight Riders',
+       'team1_Mumbai Indians', 'team1_Rajasthan Royals',
+       'team1_Royal Challengers Bangalore', 'team1_Sunrisers Hyderabad',
+       'team2_Chennai Super Kings', 'team2_Delhi Daredevils',
+       'team2_Kings XI Punjab', 'team2_Kolkata Knight Riders',
+       'team2_Mumbai Indians', 'team2_Rajasthan Royals',
+       'team2_Royal Challengers Bangalore', 'team2_Sunrisers Hyderabad', 'winner']]
+final_df_win.head()
+
+final_df_win.isnull().sum()
+
+final_df_win.dropna(inplace=True)
+
+final_df_win.isnull().sum()
+
+X=final_df_win.iloc[:,:-1]
+y=final_df_win.iloc[:,-1]
+X.head()
+
+from sklearn.model_selection import train_test_split
+
+train_x,test_x,train_y,test_y=train_test_split(X,y,test_size=0.3,random_state=0)
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import GridSearchCV
+
+tuned_param=[{'C':[10^-4,10^-2,10^0,10^2,10^4]}]
+model=GridSearchCV(LogisticRegression(),tuned_param,scoring='f1',cv=5)
+
+model.fit(train_x,train_y)
+
+print(model.best_estimator_)
+print(model.best_params_)
+
+y_prediction=model.predict(test_x)
+
+from sklearn import metrics
+print('MAE:', metrics.mean_absolute_error(test_y, y_prediction))
+print('MSE:', metrics.mean_squared_error(test_y, y_prediction))
+
+import pickle
+
+pickle.dump(Logreg,open('WinnerPrediction.pkl','wb'))
+
+WinnerPredictionPickle=pickle.load(open('WinnerPrediction.pkl','rb'))
+predictions=WinnerPredictionPickle.predict(test_x)
+metrics.r2_score(test_y, predictions)
