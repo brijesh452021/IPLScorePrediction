@@ -1,1 +1,1 @@
-
+This predictive model works using taking different features such as Overs, Runs, Batsman, Bowler, Batting Team, Bowling Team etc. as input and predict the total score for batting team and what its winning probability using different model like Lasso Regression, Linear Regression, SVM and the best model is selected to predict based on the accuracy and is deployed in Heroku platform.
